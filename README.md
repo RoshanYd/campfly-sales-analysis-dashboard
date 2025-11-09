@@ -51,7 +51,6 @@
  ➔ OrderNumber
  ➔ OrderDate
  ➔ Shipping Date
- ➔ Customer Name Index
  ➔ Channel
  ➔ Currency Code
  ➔ Warehouse Code
@@ -61,3 +60,6 @@
  ➔ Unit Price
  
  <img width="1280" height="558" alt="revenue-by-channel" src="https://github.com/user-attachments/assets/801ae485-4bfd-4c5d-9189-7d9a12b1a8a4" />
+<img width="1280" height="554" alt="Top-warehouses" src="https://github.com/user-attachments/assets/7ecb019e-0555-4c1b-afa1-a118edd799ff" />
+<img width="1280" height="546" alt="Top-regions" src="https://github.com/user-attachments/assets/ec9120b6-dabe-41e3-870f-88826dce9746" />
+<img width="1280" height="558" alt="Top-products" src="https://github.com/user-attachments/assets/dafc1697-6aec-44ea-b165-e8ce77e32154" />
