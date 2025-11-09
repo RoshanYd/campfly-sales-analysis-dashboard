@@ -1,0 +1,131 @@
+# Build plots and a lightweight interactive dashboard using plotly; save to HTML and show key previews
+import pandas as pd
+import numpy as np
+import plotly.express as px
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+from IPython.display import display, HTML
+import uuid
+
+# Assume sales_df, monthly_rev, channel_rev exist from earlier steps
+# Compute additional breakdowns
+sales_df['YearMonth'] = sales_df['OrderDate'].dt.to_period('M').dt.to_timestamp()
+
+# Monthly trend by channel for stacked area
+monthly_channel = (sales_df.dropna(subset=['OrderDate'])
+                   .groupby([pd.Grouper(key='OrderDate', freq='M'), 'Channel'], as_index=False)['Total Revenue']
+                   .sum())
+monthly_channel.rename(columns={'OrderDate':'Month'}, inplace=True)
+
+# Top products/regions/warehouses (by index IDs given in file)
+prod_rev = (sales_df.groupby('Product Description Index', as_index=False)['Total Revenue']
+            .sum().sort_values('Total Revenue', ascending=False).head(15))
+region_rev = (sales_df.groupby('Delivery Region Index', as_index=False)['Total Revenue']
+              .sum().sort_values('Total Revenue', ascending=False).head(15))
+wh_rev = (sales_df.groupby('Warehouse Code', as_index=False)['Total Revenue']
+          .sum().sort_values('Total Revenue', ascending=False).head(15))
+
+# Create figures
+fig_monthly = px.line(monthly_rev, x='Month', y='Monthly Revenue', title='Monthly Revenue Trend', markers=True)
+fig_channel = px.bar(channel_rev, x='Channel', y='Total Revenue', title='Revenue by Channel', text_auto='.2s')
+fig_stacked = px.area(monthly_channel, x='Month', y='Total Revenue', color='Channel', title='Monthly Revenue by Channel (Stacked)')
+fig_prod = px.bar(prod_rev, x='Product Description Index', y='Total Revenue', title='Top Products (by index)', text_auto='.2s')
+fig_region = px.bar(region_rev, x='Delivery Region Index', y='Total Revenue', title='Top Regions (by index)', text_auto='.2s')
+fig_wh = px.bar(wh_rev, x='Warehouse Code', y='Total Revenue', title='Top Warehouses', text_auto='.2s')
+
+# Style tweaks
+for f in [fig_monthly, fig_channel, fig_stacked, fig_prod, fig_region, fig_wh]:
+    f.update_layout(template='plotly_dark', margin=dict(l=30, r=20, t=60, b=40), height=420)
+    if isinstance(f, go.Figure):
+        f.update_yaxes(tickformat=',')
+
+# Simple HTML dashboard layout
+uid = str(uuid.uuid4())[:8]
+file_name = f"campfly_dashboard_{uid}.html"
+
+html_parts = []
+html_parts.append("""
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset='utf-8'/>
+<title>Campfly Sales Dashboard</title>
+<style>
+body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }
+.header { padding: 18px 24px; border-bottom: 1px solid #1f2937; background: #0b1220; position: sticky; top: 0; z-index: 10; }
+.header h1 { margin: 0; font-size: 20px; }
+.container { padding: 16px 18px; }
+.grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 12px; }
+.card { background: #0b1220; border: 1px solid #1f2937; border-radius: 10px; padding: 8px; }
+.card h3 { margin: 8px 10px; font-size: 14px; font-weight: 600; color: #cbd5e1; }
+@media (max-width: 1100px) {
+  .grid { grid-template-columns: repeat(6, 1fr); }
+}
+</style>
+</head>
+<body>
+<div class='header'><h1>Campfly Sales Dashboard</h1></div>
+<div class='container'>
+  <div class='grid'>
+    <div class='card' style='grid-column: 1 / -1;'>
+      <h3>Monthly Revenue Trend</h3>
+      <div id='fig_monthly'></div>
+    </div>
+    <div class='card' style='grid-column: 1 / 7;'>
+      <h3>Revenue by Channel</h3>
+      <div id='fig_channel'></div>
+    </div>
+    <div class='card' style='grid-column: 7 / -1;'>
+      <h3>Monthly Revenue by Channel (Stacked)</h3>
+      <div id='fig_stacked'></div>
+    </div>
+    <div class='card' style='grid-column: 1 / -1;'>
+      <h3>Top Products / Regions / Warehouses</h3>
+      <div id='fig_prod'></div>
+      <div id='fig_region'></div>
+      <div id='fig_wh'></div>
+    </div>
+  </div>
+</div>
+<script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+<script>
+</script>
+</body>
+</html>
+""")
+
+html_base = "".join(html_parts)
+
+# Inject figures as JSON and Plotly.react calls
+from json import dumps
+
+def fig_to_script(fig, div_id):
+    return f"Plotly.react('{div_id}', {dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)}.data, {dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)}.layout);"
+
+import plotly
+
+script = "\
+".join([
+    f"Plotly.react('fig_monthly', {dumps(fig_monthly, cls=plotly.utils.PlotlyJSONEncoder)}.data, {dumps(fig_monthly, cls=plotly.utils.PlotlyJSONEncoder)}.layout);",
+    f"Plotly.react('fig_channel', {dumps(fig_channel, cls=plotly.utils.PlotlyJSONEncoder)}.data, {dumps(fig_channel, cls=plotly.utils.PlotlyJSONEncoder)}.layout);",
+    f"Plotly.react('fig_stacked', {dumps(fig_stacked, cls=plotly.utils.PlotlyJSONEncoder)}.data, {dumps(fig_stacked, cls=plotly.utils.PlotlyJSONEncoder)}.layout);",
+    f"Plotly.react('fig_prod', {dumps(fig_prod, cls=plotly.utils.PlotlyJSONEncoder)}.data, {dumps(fig_prod, cls=plotly.utils.PlotlyJSONEncoder)}.layout);",
+    f"Plotly.react('fig_region', {dumps(fig_region, cls=plotly.utils.PlotlyJSONEncoder)}.data, {dumps(fig_region, cls=plotly.utils.PlotlyJSONEncoder)}.layout);",
+    f"Plotly.react('fig_wh', {dumps(fig_wh, cls=plotly.utils.PlotlyJSONEncoder)}.data, {dumps(fig_wh, cls=plotly.utils.PlotlyJSONEncoder)}.layout);",
+])
+
+html_final = html_base.replace('<script>\
+</script>', f'<script>\
+{script}\
+</script>')
+
+# Save dashboard to file
+with open(file_name, 'w', encoding='utf-8') as f:
+    f.write(html_final)
+
+# Also prepare small previews: show head of monthly_rev and channel_rev
+print(monthly_rev.head())
+print(channel_rev.head())
+
+# Show a link-like HTML to the file for convenience
+HTML(f"<div>Saved dashboard: <a href='https://julius.ai/files?filename={file_name}' target='_blank'>{file_name}</a></div>")
